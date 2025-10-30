@@ -2,6 +2,8 @@
 
 use {crate::error::TokenError, pinocchio::program_error::ProgramError};
 
+use core::mem::transmute;
+
 /// Instructions supported by the token program.
 #[repr(u8)]
 #[derive(Clone, Debug, PartialEq)]
@@ -26,7 +28,7 @@ pub enum TokenInstruction {
     ///   - `u8` The number of base 10 digits to the right of the decimal place.
     ///   - `Pubkey` The authority/multisignature to mint tokens.
     ///   - `Option<Pubkey>` The freeze authority/multisignature of the mint.
-    InitializeMint,
+    InitializeMint = 0,
 
     /// Initializes a new account to hold tokens.  If this account is associated
     /// with the native mint then the token balance of the initialized account
@@ -46,7 +48,7 @@ pub enum TokenInstruction {
     ///   1. `[]` The mint this account will be associated with.
     ///   2. `[]` The new account's owner/multisignature.
     ///   3. `[]` Rent sysvar.
-    InitializeAccount,
+    InitializeAccount = 1,
 
     /// Initializes a multisignature account with N provided signers.
     ///
@@ -72,7 +74,7 @@ pub enum TokenInstruction {
     ///
     ///   - `u8` The number of signers (M) required to validate this
     ///     multisignature account.
-    InitializeMultisig,
+    InitializeMultisig = 2,
 
     /// Transfers tokens from one account to another either directly or via a
     /// delegate.  If this account is associated with the native mint then equal
@@ -95,7 +97,7 @@ pub enum TokenInstruction {
     /// Data expected by this instruction:
     ///
     ///   - `u64` The amount of tokens to transfer.
-    Transfer,
+    Transfer = 3,
 
     /// Approves a delegate.  A delegate is given the authority over tokens on
     /// behalf of the source account's owner.
@@ -116,7 +118,7 @@ pub enum TokenInstruction {
     /// Data expected by this instruction:
     ///
     ///   - `u64` The amount of tokens the delegate is approved for.
-    Approve,
+    Approve = 4,
 
     /// Revokes the delegate's authority.
     ///
@@ -130,7 +132,7 @@ pub enum TokenInstruction {
     ///   0. `[writable]` The source account.
     ///   1. `[]` The source account's multisignature owner.
     ///   2. `..+M` `[signer]` M signer accounts.
-    Revoke,
+    Revoke = 5,
 
     /// Sets a new authority of a mint or account.
     ///
@@ -149,7 +151,7 @@ pub enum TokenInstruction {
     ///
     ///   - `AuthorityType` The type of authority to update.
     ///   - `Option<Pubkey>` The new authority.
-    SetAuthority,
+    SetAuthority = 6,
 
     /// Mints new tokens to an account.  The native mint does not support
     /// minting.
@@ -170,7 +172,7 @@ pub enum TokenInstruction {
     /// Data expected by this instruction:
     ///
     ///   - `u64` The amount of new tokens to mint.
-    MintTo,
+    MintTo = 7,
 
     /// Burns tokens by removing them from an account.  `Burn` does not support
     /// accounts associated with the native mint, use `CloseAccount` instead.
@@ -191,7 +193,7 @@ pub enum TokenInstruction {
     /// Data expected by this instruction:
     ///
     ///   - `u64` The amount of tokens to burn.
-    Burn,
+    Burn = 8,
 
     /// Close an account by transferring all its SOL to the destination account.
     /// Non-native accounts may only be closed if its token amount is zero.
@@ -208,7 +210,7 @@ pub enum TokenInstruction {
     ///   1. `[writable]` The destination account.
     ///   2. `[]` The account's multisignature owner.
     ///   3. `..+M` `[signer]` M signer accounts.
-    CloseAccount,
+    CloseAccount = 9,
 
     /// Freeze an Initialized account using the Mint's [`freeze_authority`] (if
     /// set).
@@ -225,7 +227,7 @@ pub enum TokenInstruction {
     ///   1. `[]` The token mint.
     ///   2. `[]` The mint's multisignature freeze authority.
     ///   3. `..+M` `[signer]` M signer accounts.
-    FreezeAccount,
+    FreezeAccount = 10,
 
     /// Thaw a Frozen account using the Mint's [`freeze_authority`] (if set).
     ///
@@ -241,7 +243,7 @@ pub enum TokenInstruction {
     ///   1. `[]` The token mint.
     ///   2. `[]` The mint's multisignature freeze authority.
     ///   3. `..+M` `[signer]` M signer accounts.
-    ThawAccount,
+    ThawAccount = 11,
 
     /// Transfers tokens from one account to another either directly or via a
     /// delegate.  If this account is associated with the native mint then equal
@@ -272,7 +274,7 @@ pub enum TokenInstruction {
     ///   - `u64` The amount of tokens to transfer.
     ///   - `u8` Expected number of base 10 digits to the right of the decimal
     ///     place.
-    TransferChecked,
+    TransferChecked = 12,
 
     /// Approves a delegate.  A delegate is given the authority over tokens on
     /// behalf of the source account's owner.
@@ -301,7 +303,7 @@ pub enum TokenInstruction {
     ///   - `u64` The amount of tokens the delegate is approved for.
     ///   - `u8` Expected number of base 10 digits to the right of the decimal
     ///     place.
-    ApproveChecked,
+    ApproveChecked = 13,
 
     /// Mints new tokens to an account.  The native mint does not support
     /// minting.
@@ -328,7 +330,7 @@ pub enum TokenInstruction {
     ///   - `u64` The amount of new tokens to mint.
     ///   - `u8` Expected number of base 10 digits to the right of the decimal
     ///     place.
-    MintToChecked,
+    MintToChecked = 14,
 
     /// Burns tokens by removing them from an account.  [`BurnChecked`] does not
     /// support accounts associated with the native mint, use `CloseAccount`
@@ -356,7 +358,7 @@ pub enum TokenInstruction {
     ///   - `u64` The amount of tokens to burn.
     ///   - `u8` Expected number of base 10 digits to the right of the decimal
     ///     place.
-    BurnChecked,
+    BurnChecked = 15,
 
     /// Like [`InitializeAccount`], but the owner pubkey is passed via
     /// instruction data rather than the accounts list. This variant may be
@@ -372,7 +374,7 @@ pub enum TokenInstruction {
     /// Data expected by this instruction:
     ///
     ///  - `Pubkey` The new account's owner/multisignature.
-    InitializeAccount2,
+    InitializeAccount2 = 16,
 
     /// Given a wrapped / native token account (a token account containing SOL)
     /// updates its amount field based on the account's underlying `lamports`.
@@ -384,7 +386,7 @@ pub enum TokenInstruction {
     ///
     ///   0. `[writable]`  The native token account to sync with its underlying
     ///      lamports.
-    SyncNative,
+    SyncNative = 17,
 
     /// Like [`InitializeAccount2`], but does not require the Rent sysvar to be
     /// provided
@@ -397,7 +399,7 @@ pub enum TokenInstruction {
     /// Data expected by this instruction:
     ///
     /// - `Pubkey` The new account's owner/multisignature.
-    InitializeAccount3,
+    InitializeAccount3 = 18,
 
     /// Like [`InitializeMultisig`], but does not require the Rent sysvar to be
     /// provided
@@ -412,7 +414,7 @@ pub enum TokenInstruction {
     ///
     ///   - `u8` The number of signers (M) required to validate this
     ///     multisignature account.
-    InitializeMultisig2,
+    InitializeMultisig2 = 19,
 
     /// Like [`InitializeMint`], but does not require the Rent sysvar to be
     /// provided
@@ -426,7 +428,7 @@ pub enum TokenInstruction {
     ///   - `u8` The number of base 10 digits to the right of the decimal place.
     ///   - `Pubkey` The authority/multisignature to mint tokens.
     ///   - `Option<Pubkey>` The freeze authority/multisignature of the mint.
-    InitializeMint2,
+    InitializeMint2 = 20,
 
     /// Gets the required size of an account for the given mint as a
     /// little-endian `u64`.
@@ -437,7 +439,7 @@ pub enum TokenInstruction {
     /// Accounts expected by this instruction:
     ///
     ///   0. `[]` The mint to calculate for.
-    GetAccountDataSize,
+    GetAccountDataSize = 21,
 
     /// Initialize the Immutable Owner extension for the given token account
     ///
@@ -450,7 +452,7 @@ pub enum TokenInstruction {
     /// Accounts expected by this instruction:
     ///
     ///   0. `[writable]`  The account to initialize.
-    InitializeImmutableOwner,
+    InitializeImmutableOwner = 22,
 
     /// Convert an Amount of tokens to a `UiAmount` `string`, using the given
     /// mint. In this version of the program, the mint can only specify the
@@ -468,7 +470,7 @@ pub enum TokenInstruction {
     /// Data expected by this instruction:
     ///
     ///   - `u64` The amount of tokens to reformat.
-    AmountToUiAmount,
+    AmountToUiAmount = 23,
 
     /// Convert a `UiAmount` of tokens to a little-endian `u64` raw Amount,
     /// using the given mint. In this version of the program, the mint can
@@ -484,7 +486,7 @@ pub enum TokenInstruction {
     /// Data expected by this instruction:
     ///
     ///   - `&str` The `ui_amount` of tokens to reformat.
-    UiAmountToAmount,
+    UiAmountToAmount = 24,
 
     /// This instruction is to be used to rescue SOL sent to any `TokenProgram`
     /// owned account by sending them to any other account, leaving behind only
@@ -547,7 +549,7 @@ impl TryFrom<u8> for TokenInstruction {
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
             // SAFETY: `value` is guaranteed to be in the range of the enum variants.
-            0..=24 | 38 | 255 => Ok(unsafe { core::mem::transmute::<u8, TokenInstruction>(value) }),
+            0..=24 | 38 | 255 => Ok(unsafe { transmute::<u8, TokenInstruction>(value) }),
             _ => Err(TokenError::InvalidInstruction.into()),
         }
     }
@@ -559,13 +561,13 @@ impl TryFrom<u8> for TokenInstruction {
 #[cfg_attr(test, derive(strum_macros::FromRepr, strum_macros::EnumIter))]
 pub enum AuthorityType {
     /// Authority to mint new tokens
-    MintTokens,
+    MintTokens = 0,
     /// Authority to freeze any account associated with the Mint
-    FreezeAccount,
+    FreezeAccount = 1,
     /// Owner of a given token account
-    AccountOwner,
+    AccountOwner = 2,
     /// Authority to close a token account
-    CloseAccount,
+    CloseAccount = 3,
 }
 
 impl TryFrom<u8> for AuthorityType {
@@ -575,7 +577,7 @@ impl TryFrom<u8> for AuthorityType {
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
             // SAFETY: `value` is guaranteed to be in the range of the enum variants.
-            0..=3 => Ok(unsafe { core::mem::transmute::<u8, AuthorityType>(value) }),
+            0..=3 => Ok(unsafe { transmute::<u8, AuthorityType>(value) }),
             _ => Err(TokenError::InvalidInstruction.into()),
         }
     }
