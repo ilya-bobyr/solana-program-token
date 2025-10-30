@@ -1,3 +1,5 @@
+use core::ptr::addr_of_mut;
+
 use pinocchio::program_error::ProgramError;
 
 pub mod account;
@@ -6,7 +8,30 @@ pub mod mint;
 pub mod multisig;
 
 /// Type alias for fields represented as `COption`.
+// TODO This should be a proper type, not an alias :'(
 pub type COption<T> = ([u8; 4], T);
+
+/// # Safety
+///
+/// `uninit` must be zero initialized, not uninitialized completely.
+#[inline(always)]
+pub unsafe fn set_coption_some<T>(uninit: *mut COption<T>, value: T) {
+    // SAFETY We are only writing though the potentially uninitialized pointer.
+    unsafe { addr_of_mut!((*uninit).0[0]).write(1) }
+    // SAFETY We are only writing though the potentially uninitialized pointer.
+    unsafe { addr_of_mut!((*uninit).1).write(value) }
+}
+
+/// # Safety
+///
+/// `uninit` must be zero initialized, not uninitialized completely.
+#[inline(always)]
+pub unsafe fn set_coption<T>(uninit: *mut COption<T>, value: Option<T>) {
+    match value {
+        Some(value) => unsafe { set_coption_some(uninit, value) },
+        None => (),
+    }
+}
 
 /// Marker trait for types that can be cast from a raw pointer.
 ///
@@ -94,4 +119,29 @@ pub unsafe fn load_mut_unchecked<T: Transmutable>(
         return Err(ProgramError::InvalidAccountData);
     }
     Ok(&mut *(bytes.as_mut_ptr() as *mut T))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{account::Account, mint::Mint, multisig::Multisig};
+
+    #[test]
+    fn all_account_sizes_are_distinct() {
+        let mint_size = size_of::<Mint>();
+        let account_size = size_of::<Account>();
+        let multisig_size = size_of::<Multisig>();
+
+        assert_ne!(
+            mint_size, account_size,
+            "`Mint` and `Account` sizes must me distinct"
+        );
+        assert_ne!(
+            mint_size, multisig_size,
+            "`Mint` and `Multisig` sizes must me distinct"
+        );
+        assert_ne!(
+            account_size, multisig_size,
+            "`Account` and `Multisig` sizes must me distinct"
+        );
+    }
 }
