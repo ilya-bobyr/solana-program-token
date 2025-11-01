@@ -3,6 +3,7 @@ mod setup;
 use {
     crate::setup::TOKEN_PROGRAM_ID,
     mollusk_svm::{result::Check, Mollusk},
+    pinocchio::pubkey::Pubkey,
     pinocchio_token_interface::{
         error::TokenError,
         instruction::TokenInstruction,
@@ -15,7 +16,6 @@ use {
     solana_instruction::{error::InstructionError, AccountMeta, Instruction},
     solana_program_error::ProgramError,
     solana_program_pack::Pack,
-    solana_pubkey::Pubkey,
     solana_rent::Rent,
     solana_sdk_ids::bpf_loader_upgradeable,
 };
@@ -33,8 +33,8 @@ fn create_token_account(
     let mut data: Vec<u8> = vec![0u8; space];
     let token = unsafe { load_mut_unchecked::<TokenAccount>(data.as_mut_slice()).unwrap() };
     token.set_account_state(AccountState::Initialized);
-    token.mint = *mint.as_array();
-    token.owner = *owner.as_array();
+    token.mint = *mint;
+    token.owner = *owner;
     token.set_amount(amount);
     token.set_native(is_native);
 
@@ -46,7 +46,7 @@ fn create_token_account(
     Account {
         lamports,
         data,
-        owner: *program_owner,
+        owner: program_owner.clone().into(),
         executable: false,
         ..Default::default()
     }
@@ -70,9 +70,9 @@ fn unwrap_lamports_instruction(
     amount: Option<u64>,
 ) -> Result<Instruction, ProgramError> {
     let accounts = vec![
-        AccountMeta::new(*source, false),
-        AccountMeta::new(*destination, false),
-        AccountMeta::new_readonly(*authority, true),
+        AccountMeta::new((*source).into(), false),
+        AccountMeta::new((*destination).into(), false),
+        AccountMeta::new_readonly((*authority).into(), true),
     ];
 
     // Start with the batch discriminator
@@ -94,19 +94,19 @@ fn unwrap_lamports_instruction(
 
 #[test]
 fn unwrap_lamports() {
-    let native_mint = Pubkey::new_from_array(native_mint::ID);
-    let authority_key = Pubkey::new_unique();
-    let destination_account_key = Pubkey::new_unique();
+    let native_mint = native_mint::ID;
+    let authority_key = Pubkey::new_tl_unique();
+    let destination_account_key = Pubkey::new_tl_unique();
 
     // native account:
     //   - amount: 2_000_000_000
-    let source_account_key = Pubkey::new_unique();
+    let source_account_key = Pubkey::new_tl_unique();
     let source_account = create_token_account(
         &native_mint,
         &authority_key,
         true,
         2_000_000_000,
-        &TOKEN_PROGRAM_ID,
+        (&TOKEN_PROGRAM_ID).into(),
     );
 
     let instruction = unwrap_lamports_instruction(
@@ -122,16 +122,16 @@ fn unwrap_lamports() {
     let result = mollusk().process_and_validate_instruction(
         &instruction,
         &[
-            (source_account_key, source_account),
-            (destination_account_key, Account::default()),
-            (authority_key, Account::default()),
+            (source_account_key.into(), source_account),
+            (destination_account_key.into(), Account::default()),
+            (authority_key.into(), Account::default()),
         ],
         &[
             Check::success(),
-            Check::account(&destination_account_key)
+            Check::account(&destination_account_key.into())
                 .lamports(2_000_000_000)
                 .build(),
-            Check::account(&source_account_key)
+            Check::account(&source_account_key.into())
                 .lamports(Rent::default().minimum_balance(size_of::<TokenAccount>()))
                 .build(),
         ],
@@ -139,7 +139,7 @@ fn unwrap_lamports() {
 
     // And the remaining amount must be 0.
 
-    let account = result.get_account(&source_account_key);
+    let account = result.get_account(&source_account_key.into());
     assert!(account.is_some());
 
     let account = account.unwrap();
@@ -149,19 +149,19 @@ fn unwrap_lamports() {
 
 #[test]
 fn unwrap_lamports_with_amount() {
-    let native_mint = Pubkey::new_from_array(native_mint::ID);
-    let authority_key = Pubkey::new_unique();
-    let destination_account_key = Pubkey::new_unique();
+    let native_mint = native_mint::ID;
+    let authority_key = Pubkey::new_tl_unique();
+    let destination_account_key = Pubkey::new_tl_unique();
 
     // native account:
     //   - amount: 2_000_000_000
-    let source_account_key = Pubkey::new_unique();
+    let source_account_key = Pubkey::new_tl_unique();
     let source_account = create_token_account(
         &native_mint,
         &authority_key,
         true,
         2_000_000_000,
-        &TOKEN_PROGRAM_ID,
+        (&TOKEN_PROGRAM_ID).into(),
     );
 
     let instruction = unwrap_lamports_instruction(
@@ -177,16 +177,16 @@ fn unwrap_lamports_with_amount() {
     let result = mollusk().process_and_validate_instruction(
         &instruction,
         &[
-            (source_account_key, source_account),
-            (destination_account_key, Account::default()),
-            (authority_key, Account::default()),
+            (source_account_key.into(), source_account),
+            (destination_account_key.into(), Account::default()),
+            (authority_key.into(), Account::default()),
         ],
         &[
             Check::success(),
-            Check::account(&destination_account_key)
+            Check::account(&destination_account_key.into())
                 .lamports(2_000_000_000)
                 .build(),
-            Check::account(&source_account_key)
+            Check::account(&source_account_key.into())
                 .lamports(Rent::default().minimum_balance(size_of::<TokenAccount>()))
                 .build(),
         ],
@@ -194,7 +194,7 @@ fn unwrap_lamports_with_amount() {
 
     // And the remaining amount must be 0.
 
-    let account = result.get_account(&source_account_key);
+    let account = result.get_account(&source_account_key.into());
     assert!(account.is_some());
 
     let account = account.unwrap();
@@ -204,19 +204,19 @@ fn unwrap_lamports_with_amount() {
 
 #[test]
 fn fail_unwrap_lamports_with_insufficient_funds() {
-    let native_mint = Pubkey::new_from_array(native_mint::ID);
-    let authority_key = Pubkey::new_unique();
-    let destination_account_key = Pubkey::new_unique();
+    let native_mint = native_mint::ID;
+    let authority_key = Pubkey::new_tl_unique();
+    let destination_account_key = Pubkey::new_tl_unique();
 
     // native account:
     //   - amount: 1_000_000_000
-    let source_account_key = Pubkey::new_unique();
+    let source_account_key = Pubkey::new_tl_unique();
     let source_account = create_token_account(
         &native_mint,
         &authority_key,
         true,
         1_000_000_000,
-        &TOKEN_PROGRAM_ID,
+        (&TOKEN_PROGRAM_ID).into(),
     );
 
     let instruction = unwrap_lamports_instruction(
@@ -233,9 +233,9 @@ fn fail_unwrap_lamports_with_insufficient_funds() {
     mollusk().process_and_validate_instruction(
         &instruction,
         &[
-            (source_account_key, source_account),
-            (destination_account_key, Account::default()),
-            (authority_key, Account::default()),
+            (source_account_key.into(), source_account),
+            (destination_account_key.into(), Account::default()),
+            (authority_key.into(), Account::default()),
         ],
         &[Check::err(ProgramError::Custom(
             TokenError::InsufficientFunds as u32,
@@ -245,19 +245,19 @@ fn fail_unwrap_lamports_with_insufficient_funds() {
 
 #[test]
 fn unwrap_lamports_with_parial_amount() {
-    let native_mint = Pubkey::new_from_array(native_mint::ID);
-    let authority_key = Pubkey::new_unique();
-    let destination_account_key = Pubkey::new_unique();
+    let native_mint = native_mint::ID;
+    let authority_key = Pubkey::new_tl_unique();
+    let destination_account_key = Pubkey::new_tl_unique();
 
     // native account:
     //   - amount: 2_000_000_000
-    let source_account_key = Pubkey::new_unique();
+    let source_account_key = Pubkey::new_tl_unique();
     let source_account = create_token_account(
         &native_mint,
         &authority_key,
         true,
         2_000_000_000,
-        &TOKEN_PROGRAM_ID,
+        (&TOKEN_PROGRAM_ID).into(),
     );
 
     let instruction = unwrap_lamports_instruction(
@@ -273,16 +273,16 @@ fn unwrap_lamports_with_parial_amount() {
     let result = mollusk().process_and_validate_instruction(
         &instruction,
         &[
-            (source_account_key, source_account),
-            (destination_account_key, Account::default()),
-            (authority_key, Account::default()),
+            (source_account_key.into(), source_account),
+            (destination_account_key.into(), Account::default()),
+            (authority_key.into(), Account::default()),
         ],
         &[
             Check::success(),
-            Check::account(&destination_account_key)
+            Check::account(&destination_account_key.into())
                 .lamports(1_000_000_000)
                 .build(),
-            Check::account(&source_account_key)
+            Check::account(&source_account_key.into())
                 .lamports(
                     Rent::default().minimum_balance(size_of::<TokenAccount>()) + 1_000_000_000,
                 )
@@ -292,7 +292,7 @@ fn unwrap_lamports_with_parial_amount() {
 
     // And the remaining amount must be 1_000_000_000.
 
-    let account = result.get_account(&source_account_key);
+    let account = result.get_account(&source_account_key.into());
     assert!(account.is_some());
 
     let account = account.unwrap();
@@ -302,20 +302,20 @@ fn unwrap_lamports_with_parial_amount() {
 
 #[test]
 fn fail_unwrap_lamports_with_invalid_authority() {
-    let native_mint = Pubkey::new_from_array(native_mint::ID);
-    let authority_key = Pubkey::new_unique();
-    let destination_account_key = Pubkey::new_unique();
-    let fake_authority_key = Pubkey::new_unique();
+    let native_mint = native_mint::ID;
+    let authority_key = Pubkey::new_tl_unique();
+    let destination_account_key = Pubkey::new_tl_unique();
+    let fake_authority_key = Pubkey::new_tl_unique();
 
     // native account:
     //   - amount: 1_000_000_000
-    let source_account_key = Pubkey::new_unique();
+    let source_account_key = Pubkey::new_tl_unique();
     let source_account = create_token_account(
         &native_mint,
         &authority_key,
         true,
         1_000_000_000,
-        &TOKEN_PROGRAM_ID,
+        (&TOKEN_PROGRAM_ID).into(),
     );
 
     let instruction = unwrap_lamports_instruction(
@@ -332,9 +332,9 @@ fn fail_unwrap_lamports_with_invalid_authority() {
     mollusk().process_and_validate_instruction(
         &instruction,
         &[
-            (source_account_key, source_account),
-            (destination_account_key, Account::default()),
-            (fake_authority_key, Account::default()),
+            (source_account_key.into(), source_account),
+            (destination_account_key.into(), Account::default()),
+            (fake_authority_key.into(), Account::default()),
         ],
         &[Check::err(ProgramError::Custom(
             TokenError::OwnerMismatch as u32,
@@ -344,19 +344,19 @@ fn fail_unwrap_lamports_with_invalid_authority() {
 
 #[test]
 fn fail_unwrap_lamports_with_non_native_account() {
-    let mint = Pubkey::new_unique();
-    let authority_key = Pubkey::new_unique();
-    let destination_account_key = Pubkey::new_unique();
+    let mint = Pubkey::new_tl_unique();
+    let authority_key = Pubkey::new_tl_unique();
+    let destination_account_key = Pubkey::new_tl_unique();
 
     // non-native account:
     //   - amount: 2_000_000_000
-    let source_account_key = Pubkey::new_unique();
+    let source_account_key = Pubkey::new_tl_unique();
     let mut source_account = create_token_account(
         &mint,
         &authority_key,
         false, // <-- non-native account
         2_000_000_000,
-        &TOKEN_PROGRAM_ID,
+        (&TOKEN_PROGRAM_ID).into(),
     );
     source_account.lamports += 2_000_000_000;
 
@@ -374,9 +374,9 @@ fn fail_unwrap_lamports_with_non_native_account() {
     mollusk().process_and_validate_instruction(
         &instruction,
         &[
-            (source_account_key, source_account),
-            (destination_account_key, Account::default()),
-            (authority_key, Account::default()),
+            (source_account_key.into(), source_account),
+            (destination_account_key.into(), Account::default()),
+            (authority_key.into(), Account::default()),
         ],
         &[Check::err(ProgramError::Custom(
             TokenError::NonNativeNotSupported as u32,
@@ -386,18 +386,18 @@ fn fail_unwrap_lamports_with_non_native_account() {
 
 #[test]
 fn unwrap_lamports_with_self_transfer() {
-    let native_mint = Pubkey::new_from_array(native_mint::ID);
-    let authority_key = Pubkey::new_unique();
+    let native_mint = native_mint::ID;
+    let authority_key = Pubkey::new_tl_unique();
 
     // native account:
     //   - amount: 2_000_000_000
-    let source_account_key = Pubkey::new_unique();
+    let source_account_key = Pubkey::new_tl_unique();
     let source_account = create_token_account(
         &native_mint,
         &authority_key,
         true,
         2_000_000_000,
-        &TOKEN_PROGRAM_ID,
+        (&TOKEN_PROGRAM_ID).into(),
     );
 
     let instruction = unwrap_lamports_instruction(
@@ -414,12 +414,12 @@ fn unwrap_lamports_with_self_transfer() {
     let result = mollusk().process_and_validate_instruction(
         &instruction,
         &[
-            (source_account_key, source_account),
-            (authority_key, Account::default()),
+            (source_account_key.into(), source_account),
+            (authority_key.into(), Account::default()),
         ],
         &[
             Check::success(),
-            Check::account(&source_account_key)
+            Check::account(&source_account_key.into())
                 .lamports(
                     Rent::default().minimum_balance(size_of::<TokenAccount>()) + 2_000_000_000,
                 )
@@ -427,7 +427,7 @@ fn unwrap_lamports_with_self_transfer() {
         ],
     );
 
-    let account = result.get_account(&source_account_key);
+    let account = result.get_account(&source_account_key.into());
     assert!(account.is_some());
 
     let account = account.unwrap();
@@ -437,14 +437,14 @@ fn unwrap_lamports_with_self_transfer() {
 
 #[test]
 fn fail_unwrap_lamports_with_invalid_native_account() {
-    let native_mint = Pubkey::new_from_array(native_mint::ID);
-    let authority_key = Pubkey::new_unique();
-    let destination_account_key = Pubkey::new_unique();
-    let invalid_program_owner = Pubkey::new_unique();
+    let native_mint = native_mint::ID;
+    let authority_key = Pubkey::new_tl_unique();
+    let destination_account_key = Pubkey::new_tl_unique();
+    let invalid_program_owner = Pubkey::new_tl_unique();
 
     // native account:
     //   - amount: 2_000_000_000
-    let source_account_key = Pubkey::new_unique();
+    let source_account_key = Pubkey::new_tl_unique();
     let mut source_account = create_token_account(
         &native_mint,
         &authority_key,
@@ -468,9 +468,9 @@ fn fail_unwrap_lamports_with_invalid_native_account() {
     mollusk().process_and_validate_instruction(
         &instruction,
         &[
-            (source_account_key, source_account),
-            (destination_account_key, Account::default()),
-            (authority_key, Account::default()),
+            (source_account_key.into(), source_account),
+            (destination_account_key.into(), Account::default()),
+            (authority_key.into(), Account::default()),
         ],
         &[Check::instruction_err(
             InstructionError::ExternalAccountDataModified,
@@ -480,25 +480,30 @@ fn fail_unwrap_lamports_with_invalid_native_account() {
 
 #[test]
 fn unwrap_lamports_to_native_account() {
-    let native_mint = Pubkey::new_from_array(native_mint::ID);
-    let authority_key = Pubkey::new_unique();
+    let native_mint = native_mint::ID;
+    let authority_key = Pubkey::new_tl_unique();
 
     // native account:
     //   - amount: 2_000_000_000
-    let source_account_key = Pubkey::new_unique();
+    let source_account_key = Pubkey::new_tl_unique();
     let source_account = create_token_account(
         &native_mint,
         &authority_key,
         true,
         2_000_000_000,
-        &TOKEN_PROGRAM_ID,
+        (&TOKEN_PROGRAM_ID).into(),
     );
 
     // destination native account:
     //   - amount: 0
-    let destination_account_key = Pubkey::new_unique();
-    let destination_account =
-        create_token_account(&native_mint, &authority_key, true, 0, &TOKEN_PROGRAM_ID);
+    let destination_account_key = Pubkey::new_tl_unique();
+    let destination_account = create_token_account(
+        &native_mint,
+        &authority_key,
+        true,
+        0,
+        (&TOKEN_PROGRAM_ID).into(),
+    );
 
     let instruction = unwrap_lamports_instruction(
         &source_account_key,
@@ -513,18 +518,18 @@ fn unwrap_lamports_to_native_account() {
     let result = mollusk().process_and_validate_instruction(
         &instruction,
         &[
-            (source_account_key, source_account),
-            (destination_account_key, destination_account),
-            (authority_key, Account::default()),
+            (source_account_key.into(), source_account),
+            (destination_account_key.into(), destination_account),
+            (authority_key.into(), Account::default()),
         ],
         &[
             Check::success(),
-            Check::account(&destination_account_key)
+            Check::account(&destination_account_key.into())
                 .lamports(
                     Rent::default().minimum_balance(size_of::<TokenAccount>()) + 2_000_000_000,
                 )
                 .build(),
-            Check::account(&source_account_key)
+            Check::account(&source_account_key.into())
                 .lamports(Rent::default().minimum_balance(size_of::<TokenAccount>()))
                 .build(),
         ],
@@ -532,7 +537,7 @@ fn unwrap_lamports_to_native_account() {
 
     // And the remaining amount on the source account must be 0.
 
-    let account = result.get_account(&source_account_key);
+    let account = result.get_account(&source_account_key.into());
     assert!(account.is_some());
 
     let account = account.unwrap();
@@ -542,7 +547,7 @@ fn unwrap_lamports_to_native_account() {
     // And the amount on the destination account must be 0 since we transferred
     // lamports directly to the account.
 
-    let account = result.get_account(&destination_account_key);
+    let account = result.get_account(&destination_account_key.into());
     assert!(account.is_some());
 
     let account = account.unwrap();
@@ -552,30 +557,30 @@ fn unwrap_lamports_to_native_account() {
 
 #[test]
 fn unwrap_lamports_to_token_account() {
-    let native_mint = Pubkey::new_from_array(native_mint::ID);
-    let authority_key = Pubkey::new_unique();
-    let non_native_mint = Pubkey::new_unique();
+    let native_mint = native_mint::ID;
+    let authority_key = Pubkey::new_tl_unique();
+    let non_native_mint = Pubkey::new_tl_unique();
 
     // native account:
     //   - amount: 2_000_000_000
-    let source_account_key = Pubkey::new_unique();
+    let source_account_key = Pubkey::new_tl_unique();
     let source_account = create_token_account(
         &native_mint,
         &authority_key,
         true,
         2_000_000_000,
-        &TOKEN_PROGRAM_ID,
+        (&TOKEN_PROGRAM_ID).into(),
     );
 
     // destination non-native account:
     //   - amount: 0
-    let destination_account_key = Pubkey::new_unique();
+    let destination_account_key = Pubkey::new_tl_unique();
     let destination_account = create_token_account(
         &non_native_mint,
         &authority_key,
         false,
         0,
-        &TOKEN_PROGRAM_ID,
+        (&TOKEN_PROGRAM_ID).into(),
     );
 
     let instruction = unwrap_lamports_instruction(
@@ -591,18 +596,18 @@ fn unwrap_lamports_to_token_account() {
     let result = mollusk().process_and_validate_instruction(
         &instruction,
         &[
-            (source_account_key, source_account),
-            (destination_account_key, destination_account),
-            (authority_key, Account::default()),
+            (source_account_key.into(), source_account),
+            (destination_account_key.into(), destination_account),
+            (authority_key.into(), Account::default()),
         ],
         &[
             Check::success(),
-            Check::account(&destination_account_key)
+            Check::account(&destination_account_key.into())
                 .lamports(
                     Rent::default().minimum_balance(size_of::<TokenAccount>()) + 2_000_000_000,
                 )
                 .build(),
-            Check::account(&source_account_key)
+            Check::account(&source_account_key.into())
                 .lamports(Rent::default().minimum_balance(size_of::<TokenAccount>()))
                 .build(),
         ],
@@ -610,7 +615,7 @@ fn unwrap_lamports_to_token_account() {
 
     // And the remaining amount on the source account must be 0.
 
-    let account = result.get_account(&source_account_key);
+    let account = result.get_account(&source_account_key.into());
     assert!(account.is_some());
 
     let account = account.unwrap();
@@ -620,7 +625,7 @@ fn unwrap_lamports_to_token_account() {
     // And the amount on the destination account must be 0 since we transferred
     // lamports directly to the account.
 
-    let account = result.get_account(&destination_account_key);
+    let account = result.get_account(&destination_account_key.into());
     assert!(account.is_some());
 
     let account = account.unwrap();

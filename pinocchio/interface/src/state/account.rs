@@ -8,11 +8,14 @@ use {
 };
 
 /// Incinerator address.
-pub const INCINERATOR_ID: Pubkey =
-    pinocchio_pubkey::pubkey!("1nc1nerator11111111111111111111111111111111");
+pub const INCINERATOR_ID: Pubkey = Pubkey::from_bytes(pinocchio_pubkey::pubkey!(
+    "1nc1nerator11111111111111111111111111111111"
+));
 
 /// System program id.
-const SYSTEM_PROGRAM_ID: Pubkey = pinocchio_pubkey::pubkey!("11111111111111111111111111111111");
+const SYSTEM_PROGRAM_ID: Pubkey = Pubkey::from_bytes(pinocchio_pubkey::pubkey!(
+    "11111111111111111111111111111111"
+));
 
 /// Internal representation of a token account data.
 #[repr(C)]

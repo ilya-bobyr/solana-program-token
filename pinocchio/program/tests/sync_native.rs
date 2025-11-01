@@ -3,6 +3,7 @@ mod setup;
 use {
     crate::setup::TOKEN_PROGRAM_ID,
     mollusk_svm::{result::Check, Mollusk},
+    pinocchio::pubkey::Pubkey,
     pinocchio_token_interface::{
         native_mint,
         state::{
@@ -12,7 +13,6 @@ use {
     solana_account::Account,
     solana_program_pack::Pack,
     solana_program_test::tokio,
-    solana_pubkey::Pubkey,
     solana_rent::Rent,
     solana_sdk_ids::bpf_loader_upgradeable,
 };
@@ -30,8 +30,8 @@ fn create_token_account(
     let mut data: Vec<u8> = vec![0u8; space];
     let token = unsafe { load_mut_unchecked::<TokenAccount>(data.as_mut_slice()).unwrap() };
     token.set_account_state(AccountState::Initialized);
-    token.mint = *mint.as_array();
-    token.owner = *owner.as_array();
+    token.mint = *mint;
+    token.owner = *owner;
     token.set_amount(amount);
     token.set_native(is_native);
 
@@ -43,7 +43,7 @@ fn create_token_account(
     Account {
         lamports,
         data,
-        owner: *program_owner,
+        owner: program_owner.clone().into(),
         executable: false,
         ..Default::default()
     }
@@ -63,30 +63,37 @@ fn mollusk() -> Mollusk {
 
 #[tokio::test]
 async fn sync_native() {
-    let native_mint = Pubkey::new_from_array(native_mint::ID);
-    let authority_key = Pubkey::new_unique();
+    let native_mint = native_mint::ID;
+    let authority_key = Pubkey::new_tl_unique();
 
     // native account
     //   - amount: 1_000_000_000
     //   - lamports: 2_000_000_000
-    let source_account_key = Pubkey::new_unique();
-    let mut source_account =
-        create_token_account(&native_mint, &authority_key, true, 0, &TOKEN_PROGRAM_ID);
+    let source_account_key = Pubkey::new_tl_unique();
+    let mut source_account = create_token_account(
+        &native_mint,
+        &authority_key,
+        true,
+        0,
+        (&TOKEN_PROGRAM_ID).into(),
+    );
     source_account.lamports += 2_000_000_000;
 
-    let instruction =
-        spl_token_interface::instruction::sync_native(&TOKEN_PROGRAM_ID, &source_account_key)
-            .unwrap();
+    let instruction = spl_token_interface::instruction::sync_native(
+        &TOKEN_PROGRAM_ID,
+        (&source_account_key).into(),
+    )
+    .unwrap();
 
     // Executes the sync_native instruction.
 
     let result = mollusk().process_and_validate_instruction_chain(
         &[(&instruction, &[Check::success()])],
-        &[(source_account_key, source_account)],
+        &[(source_account_key.into(), source_account)],
     );
 
     result.resulting_accounts.iter().for_each(|(key, account)| {
-        if *key == source_account_key {
+        if *key == source_account_key.into() {
             let token_account = spl_token_interface::state::Account::unpack(&account.data).unwrap();
             assert_eq!(token_account.amount, 2_000_000_000);
         }

@@ -83,7 +83,7 @@ const MAX_FORMATTED_DIGITS: usize = u8::MAX as usize + 2;
 /// Checks that the account is owned by the expected program.
 #[inline(always)]
 fn check_account_owner(account_info: &AccountInfo) -> ProgramResult {
-    if likely(account_info.is_owned_by(&TOKEN_PROGRAM_ID)) {
+    if likely(account_info.is_owned_by((&TOKEN_PROGRAM_ID).into())) {
         Ok(())
     } else {
         Err(ProgramError::IncorrectProgramId)
@@ -111,7 +111,7 @@ unsafe fn validate_owner(
 
     if unlikely(
         owner_account_info.data_len() == Multisig::LEN
-            && owner_account_info.is_owned_by(&TOKEN_PROGRAM_ID),
+            && owner_account_info.is_owned_by((&TOKEN_PROGRAM_ID).into()),
     ) {
         // SAFETY: the caller guarantees that there are no mutable borrows of
         // `owner_account_info` account data and the `load` validates that the

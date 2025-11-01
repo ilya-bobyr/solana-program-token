@@ -1,6 +1,6 @@
 [package]
 name = "pinocchio-token-program"
-version = "0.0.0"
+version = "0.1.0"
 authors = { workspace = true }
 edition = { workspace = true }
 description = "A pinocchio-based Token (aka 'p-token') program"
@@ -12,7 +12,7 @@ license = { workspace = true }
 crate-type = ["cdylib"]
 
 [dependencies]
-pinocchio = { workspace = true }
+pinocchio = { workspace = true, features = ["solana-address"] }
 pinocchio-log = { workspace = true, default-features = false }
 pinocchio-token-interface = { workspace = true }
 
@@ -22,7 +22,9 @@ assert_matches = { workspace = true }
 mollusk-svm = { workspace = true }
 mollusk-svm-fuzz-fixture = { workspace = true }
 num-traits = { workspace = true }
+pinocchio = { workspace = true, features = ["solana-address", "test-utils"] }
 solana-account = { workspace = true }
+solana-address = { workspace = true }
 solana-instruction = { workspace = true }
 solana-keypair = { workspace = true }
 solana-program-error = { workspace = true }

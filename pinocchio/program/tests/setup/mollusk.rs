@@ -19,9 +19,9 @@ pub fn create_mint_account(
 
     let mut data: Vec<u8> = vec![0u8; space];
     let mint = unsafe { load_mut_unchecked::<Mint>(data.as_mut_slice()).unwrap() };
-    mint.set_mint_authority(mint_authority.as_array());
+    mint.set_mint_authority(mint_authority.as_array().into());
     if let Some(freeze_authority) = freeze_authority {
-        mint.set_freeze_authority(freeze_authority.as_array());
+        mint.set_freeze_authority(freeze_authority.as_array().into());
     }
     mint.set_initialized();
     mint.decimals = decimals;

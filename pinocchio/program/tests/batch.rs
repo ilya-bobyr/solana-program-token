@@ -4,6 +4,7 @@ use {
     crate::setup::TOKEN_PROGRAM_ID,
     agave_feature_set::FeatureSet,
     mollusk_svm::{result::Check, Mollusk},
+    pinocchio::pubkey::Pubkey,
     pinocchio_token_interface::{
         native_mint,
         state::{
@@ -17,7 +18,6 @@ use {
     solana_program_error::ProgramError,
     solana_program_pack::Pack,
     solana_program_test::{tokio, ProgramTest},
-    solana_pubkey::Pubkey,
     solana_rent::Rent,
     solana_sdk_ids::bpf_loader_upgradeable,
     solana_signer::Signer,
@@ -86,7 +86,7 @@ async fn batch_initialize_mint_transfer_close() {
 
     // Create a mint 2 with a freeze authority
     let mint_b = Keypair::new();
-    let freeze_authority = Pubkey::new_unique();
+    let freeze_authority = Pubkey::new_tl_unique();
     let create_mint_b = create_account(
         &context.payer.pubkey(),
         &mint_b.pubkey(),
@@ -99,7 +99,7 @@ async fn batch_initialize_mint_transfer_close() {
             &TOKEN_PROGRAM_ID,
             &mint_b.pubkey(),
             &mint_authority.pubkey(),
-            Some(&freeze_authority),
+            Some(&freeze_authority.into()),
             6,
         )
         .unwrap();
@@ -255,13 +255,13 @@ fn create_mint(
     let mint = unsafe { load_mut_unchecked::<Mint>(data.as_mut_slice()).unwrap() };
     mint.set_initialized();
     mint.set_supply(supply);
-    mint.set_mint_authority(mint_authority.as_array());
+    mint.set_mint_authority(mint_authority);
     mint.decimals = decimals;
 
     Account {
         lamports,
         data,
-        owner: *program_owner,
+        owner: program_owner.clone().into(),
         executable: false,
         ..Default::default()
     }
@@ -280,8 +280,8 @@ fn create_token_account(
     let mut data: Vec<u8> = vec![0u8; space];
     let token = unsafe { load_mut_unchecked::<TokenAccount>(data.as_mut_slice()).unwrap() };
     token.set_account_state(AccountState::Initialized);
-    token.mint = *mint.as_array();
-    token.owner = *owner.as_array();
+    token.mint = *mint;
+    token.owner = *owner;
     token.set_amount(amount);
     token.set_native(is_native);
     token.set_native_amount(amount);
@@ -293,7 +293,7 @@ fn create_token_account(
     Account {
         lamports,
         data,
-        owner: *program_owner,
+        owner: program_owner.clone().into(),
         executable: false,
         ..Default::default()
     }
@@ -324,21 +324,21 @@ fn mollusk() -> Mollusk {
 
 #[tokio::test]
 async fn batch_transfer() {
-    let authority_key = Pubkey::new_unique();
-    let mint_key = Pubkey::new_unique();
+    let authority_key = Pubkey::new_tl_unique();
+    let mint_key = Pubkey::new_tl_unique();
 
     // source account
     //   - amount: 1_000_000_000
     //   - mint: mint_key
     //   - is_native: false
     //   - program_id: TOKEN_PROGRAM_ID
-    let source_account_key = Pubkey::new_unique();
+    let source_account_key = Pubkey::new_tl_unique();
     let source_account = create_token_account(
         &mint_key,
         &authority_key,
         false,
         1_000_000_000,
-        &TOKEN_PROGRAM_ID,
+        (&TOKEN_PROGRAM_ID).into(),
     );
 
     // destination account
@@ -346,15 +346,20 @@ async fn batch_transfer() {
     //   - mint: mint_key
     //   - is_native: false
     //   - program_id: TOKEN_PROGRAM_ID
-    let destination_account_key = Pubkey::new_unique();
-    let destination_account =
-        create_token_account(&mint_key, &authority_key, false, 0, &TOKEN_PROGRAM_ID);
+    let destination_account_key = Pubkey::new_tl_unique();
+    let destination_account = create_token_account(
+        &mint_key,
+        &authority_key,
+        false,
+        0,
+        (&TOKEN_PROGRAM_ID).into(),
+    );
 
     let instruction = batch_instruction(vec![spl_token_interface::instruction::transfer(
         &TOKEN_PROGRAM_ID,
-        &source_account_key,
-        &destination_account_key,
-        &authority_key,
+        &source_account_key.into(),
+        &destination_account_key.into(),
+        &authority_key.into(),
         &[],
         500_000_000,
     )
@@ -366,10 +371,10 @@ async fn batch_transfer() {
     mollusk().process_and_validate_instruction_chain(
         &[(&instruction, &[Check::success(), Check::all_rent_exempt()])],
         &[
-            (source_account_key, source_account),
-            (destination_account_key, destination_account),
+            (source_account_key.into(), source_account),
+            (destination_account_key.into(), destination_account),
             (
-                authority_key,
+                authority_key.into(),
                 Account {
                     lamports: Rent::default().minimum_balance(0),
                     ..Default::default()
@@ -381,16 +386,16 @@ async fn batch_transfer() {
 
 #[tokio::test]
 async fn batch_fail_transfer_with_invalid_program_owner() {
-    let invalid_program_id = Pubkey::new_from_array([2; 32]);
-    let native_mint = Pubkey::new_from_array(native_mint::ID);
-    let authority_key = Pubkey::new_unique();
+    let invalid_program_id = Pubkey::from_bytes([2; 32]);
+    let native_mint = native_mint::ID;
+    let authority_key = Pubkey::new_tl_unique();
 
     // source account
     //   - amount: 1_000_000_000
     //   - mint: native_mint
     //   - is_native: true
     //   - program_id: invalid_program_id
-    let source_account_key = Pubkey::new_unique();
+    let source_account_key = Pubkey::new_tl_unique();
     let source_account = create_token_account(
         &native_mint,
         &authority_key,
@@ -404,15 +409,20 @@ async fn batch_fail_transfer_with_invalid_program_owner() {
     //   - mint: native_mint
     //   - is_native: true
     //   - program_id: TOKEN_PROGRAM_ID
-    let destination_account_key = Pubkey::new_unique();
-    let destination_account =
-        create_token_account(&native_mint, &authority_key, true, 0, &TOKEN_PROGRAM_ID);
+    let destination_account_key = Pubkey::new_tl_unique();
+    let destination_account = create_token_account(
+        &native_mint,
+        &authority_key,
+        true,
+        0,
+        (&TOKEN_PROGRAM_ID).into(),
+    );
 
     let instruction = batch_instruction(vec![spl_token_interface::instruction::transfer(
         &TOKEN_PROGRAM_ID,
-        &source_account_key,
-        &destination_account_key,
-        &authority_key,
+        &source_account_key.into(),
+        &destination_account_key.into(),
+        &authority_key.into(),
         &[],
         500_000_000,
     )
@@ -430,10 +440,10 @@ async fn batch_fail_transfer_with_invalid_program_owner() {
             ],
         )],
         &[
-            (source_account_key, source_account),
-            (destination_account_key, destination_account),
+            (source_account_key.into(), source_account),
+            (destination_account_key.into(), destination_account),
             (
-                authority_key,
+                authority_key.into(),
                 Account {
                     lamports: Rent::default().minimum_balance(0),
                     ..Default::default()
@@ -445,18 +455,18 @@ async fn batch_fail_transfer_with_invalid_program_owner() {
 
 #[tokio::test]
 async fn batch_fail_transfer_checked_with_invalid_program_owner() {
-    let invalid_program_id = Pubkey::new_from_array([2; 32]);
-    let authority_key = Pubkey::new_unique();
+    let invalid_program_id = Pubkey::from_bytes([2; 32]);
+    let authority_key = Pubkey::new_tl_unique();
 
-    let native_mint_key = Pubkey::new_from_array(native_mint::ID);
-    let native_mint = create_mint(&authority_key, 5_000_000_000, 9, &TOKEN_PROGRAM_ID);
+    let native_mint_key = native_mint::ID;
+    let native_mint = create_mint(&authority_key, 5_000_000_000, 9, (&TOKEN_PROGRAM_ID).into());
 
     // source account
     //   - amount: 1_000_000_000
     //   - mint: native_mint
     //   - is_native: true
     //   - program_id: invalid_program_id
-    let source_account_key = Pubkey::new_unique();
+    let source_account_key = Pubkey::new_tl_unique();
     let source_account = create_token_account(
         &native_mint_key,
         &authority_key,
@@ -470,16 +480,21 @@ async fn batch_fail_transfer_checked_with_invalid_program_owner() {
     //   - mint: native_mint
     //   - is_native: true
     //   - program_id: TOKEN_PROGRAM_ID
-    let destination_account_key = Pubkey::new_unique();
-    let destination_account =
-        create_token_account(&native_mint_key, &authority_key, true, 0, &TOKEN_PROGRAM_ID);
+    let destination_account_key = Pubkey::new_tl_unique();
+    let destination_account = create_token_account(
+        &native_mint_key,
+        &authority_key,
+        true,
+        0,
+        (&TOKEN_PROGRAM_ID).into(),
+    );
 
     let instruction = batch_instruction(vec![spl_token_interface::instruction::transfer_checked(
         &TOKEN_PROGRAM_ID,
-        &source_account_key,
-        &native_mint_key,
-        &destination_account_key,
-        &authority_key,
+        &source_account_key.into(),
+        &native_mint_key.into(),
+        &destination_account_key.into(),
+        &authority_key.into(),
         &[],
         500_000_000,
         9,
@@ -498,11 +513,11 @@ async fn batch_fail_transfer_checked_with_invalid_program_owner() {
             ],
         )],
         &[
-            (source_account_key, source_account),
-            (destination_account_key, destination_account),
-            (native_mint_key, native_mint),
+            (source_account_key.into(), source_account),
+            (destination_account_key.into(), destination_account),
+            (native_mint_key.into(), native_mint),
             (
-                authority_key,
+                authority_key.into(),
                 Account {
                     lamports: Rent::default().minimum_balance(0),
                     ..Default::default()
@@ -514,16 +529,16 @@ async fn batch_fail_transfer_checked_with_invalid_program_owner() {
 
 #[tokio::test]
 async fn batch_fail_swap_tokens_with_invalid_program_owner() {
-    let native_mint = Pubkey::new_from_array(native_mint::ID);
-    let invalid_program_id = Pubkey::new_from_array([2; 32]);
-    let authority_key = Pubkey::new_unique();
+    let native_mint = native_mint::ID;
+    let invalid_program_id = Pubkey::from_bytes([2; 32]);
+    let authority_key = Pubkey::new_tl_unique();
 
     // Account A
     //   - amount: 1_000
     //   - mint: native_mint
     //   - is_native: false
     //   - program_id: invalid_program_id
-    let account_a_key = Pubkey::new_unique();
+    let account_a_key = Pubkey::new_tl_unique();
     let account_a = create_token_account(
         &native_mint,
         &authority_key,
@@ -537,38 +552,51 @@ async fn batch_fail_swap_tokens_with_invalid_program_owner() {
     //   - mint: native_mint
     //   - is_native: true
     //   - program_id: TOKEN_PROGRAM_ID
-    let account_b_key = Pubkey::new_unique();
-    let account_b = create_token_account(&native_mint, &authority_key, true, 0, &TOKEN_PROGRAM_ID);
+    let account_b_key = Pubkey::new_tl_unique();
+    let account_b = create_token_account(
+        &native_mint,
+        &authority_key,
+        true,
+        0,
+        (&TOKEN_PROGRAM_ID).into(),
+    );
 
     // Account C
     //   - amount: 0
     //   - mint: native_mint
     //   - is_native: true
     //   - program_id: TOKEN_PROGRAM_ID
-    let account_c_key = Pubkey::new_unique();
-    let account_c =
-        create_token_account(&native_mint, &authority_key, true, 1_000, &TOKEN_PROGRAM_ID);
+    let account_c_key = Pubkey::new_tl_unique();
+    let account_c = create_token_account(
+        &native_mint,
+        &authority_key,
+        true,
+        1_000,
+        (&TOKEN_PROGRAM_ID).into(),
+    );
 
     // Batch instruction to swap tokens
     //   - transfer 300 from account A to account B
     //   - transfer 300 from account C to account A
     let instruction = batch_instruction(vec![
-        spl_token_interface::instruction::sync_native(&TOKEN_PROGRAM_ID, &account_b_key).unwrap(),
-        spl_token_interface::instruction::sync_native(&TOKEN_PROGRAM_ID, &account_c_key).unwrap(),
+        spl_token_interface::instruction::sync_native(&TOKEN_PROGRAM_ID, &account_b_key.into())
+            .unwrap(),
+        spl_token_interface::instruction::sync_native(&TOKEN_PROGRAM_ID, &account_c_key.into())
+            .unwrap(),
         spl_token_interface::instruction::transfer(
             &TOKEN_PROGRAM_ID,
-            &account_a_key,
-            &account_b_key,
-            &authority_key,
+            &account_a_key.into(),
+            &account_b_key.into(),
+            &authority_key.into(),
             &[],
             300,
         )
         .unwrap(),
         spl_token_interface::instruction::transfer(
             &TOKEN_PROGRAM_ID,
-            &account_c_key,
-            &account_a_key,
-            &authority_key,
+            &account_c_key.into(),
+            &account_a_key.into(),
+            &authority_key.into(),
             &[],
             300,
         )
@@ -587,11 +615,11 @@ async fn batch_fail_swap_tokens_with_invalid_program_owner() {
             ],
         )],
         &[
-            (account_a_key, account_a),
-            (account_b_key, account_b),
-            (account_c_key, account_c),
+            (account_a_key.into(), account_a),
+            (account_b_key.into(), account_b),
+            (account_c_key.into(), account_c),
             (
-                authority_key,
+                authority_key.into(),
                 Account {
                     lamports: Rent::default().minimum_balance(0),
                     ..Default::default()
@@ -603,18 +631,18 @@ async fn batch_fail_swap_tokens_with_invalid_program_owner() {
 
 #[tokio::test]
 async fn batch_fail_mint_to_with_invalid_program_owner() {
-    let invalid_program_id = Pubkey::new_from_array([2; 32]);
-    let authority_key = Pubkey::new_unique();
+    let invalid_program_id = Pubkey::from_bytes([2; 32]);
+    let authority_key = Pubkey::new_tl_unique();
 
-    let mint_key = Pubkey::new_unique();
-    let mint = create_mint(&authority_key, 0, 0, &TOKEN_PROGRAM_ID);
+    let mint_key = Pubkey::new_tl_unique();
+    let mint = create_mint(&authority_key, 0, 0, (&TOKEN_PROGRAM_ID).into());
 
     // account A (invalid)
     //   - amount: 1_000_000_000
     //   - mint: native_mint
     //   - is_native: false
     //   - program_id: invalid_program_id
-    let account_a_key = Pubkey::new_unique();
+    let account_a_key = Pubkey::new_tl_unique();
     let account_a = create_token_account(&mint_key, &authority_key, false, 0, &invalid_program_id);
 
     // account B
@@ -622,24 +650,30 @@ async fn batch_fail_mint_to_with_invalid_program_owner() {
     //   - mint: native_mint
     //   - is_native: false
     //   - program_id: TOKEN_PROGRAM_ID
-    let account_b_key = Pubkey::new_unique();
-    let account_b = create_token_account(&mint_key, &authority_key, false, 0, &TOKEN_PROGRAM_ID);
+    let account_b_key = Pubkey::new_tl_unique();
+    let account_b = create_token_account(
+        &mint_key,
+        &authority_key,
+        false,
+        0,
+        (&TOKEN_PROGRAM_ID).into(),
+    );
 
     let instruction = batch_instruction(vec![
         spl_token_interface::instruction::mint_to(
             &TOKEN_PROGRAM_ID,
-            &mint_key,
-            &account_a_key,
-            &authority_key,
+            &mint_key.into(),
+            &account_a_key.into(),
+            &authority_key.into(),
             &[],
             1_000_000_000,
         )
         .unwrap(),
         spl_token_interface::instruction::mint_to(
             &TOKEN_PROGRAM_ID,
-            &mint_key,
-            &account_b_key,
-            &authority_key,
+            &mint_key.into(),
+            &account_b_key.into(),
+            &authority_key.into(),
             &[],
             1_000_000_000,
         )
@@ -658,11 +692,11 @@ async fn batch_fail_mint_to_with_invalid_program_owner() {
             ],
         )],
         &[
-            (mint_key, mint),
-            (account_a_key, account_a),
-            (account_b_key, account_b),
+            (mint_key.into(), mint),
+            (account_a_key.into(), account_a),
+            (account_b_key.into(), account_b),
             (
-                authority_key,
+                authority_key.into(),
                 Account {
                     lamports: Rent::default().minimum_balance(0),
                     ..Default::default()
@@ -674,26 +708,26 @@ async fn batch_fail_mint_to_with_invalid_program_owner() {
 
 #[tokio::test]
 async fn batch_fail_burn_with_invalid_program_owner() {
-    let invalid_program_id = Pubkey::new_from_array([2; 32]);
-    let authority_key = Pubkey::new_unique();
+    let invalid_program_id = Pubkey::from_bytes([2; 32]);
+    let authority_key = Pubkey::new_tl_unique();
 
-    let mint_key = Pubkey::new_unique();
-    let mint = create_mint(&authority_key, 2_000_000_000, 0, &TOKEN_PROGRAM_ID);
+    let mint_key = Pubkey::new_tl_unique();
+    let mint = create_mint(&authority_key, 2_000_000_000, 0, (&TOKEN_PROGRAM_ID).into());
 
     // account A
     //   - amount: 0
     //   - mint: native_mint
     //   - is_native: false
     //   - program_id: TOKEN_PROGRAM_ID
-    let account_a_key = Pubkey::new_unique();
-    let account_a = create_token_account(&mint_key, &authority_key, false, 0, &TOKEN_PROGRAM_ID);
+    let account_a_key = Pubkey::new_tl_unique();
+    let account_a = create_token_account(&mint_key, &authority_key, false, 0, (&TOKEN_PROGRAM_ID).into());
 
     // account B (invalid)
     //   - amount: 1_000_000_000
     //   - mint: native_mint
     //   - is_native: false
     //   - program_id: invalid_program_id
-    let account_b_key = Pubkey::new_unique();
+    let account_b_key = Pubkey::new_tl_unique();
     let account_b = create_token_account(
         &mint_key,
         &authority_key,
@@ -705,36 +739,36 @@ async fn batch_fail_burn_with_invalid_program_owner() {
     let instruction = batch_instruction(vec![
         spl_token_interface::instruction::mint_to(
             &TOKEN_PROGRAM_ID,
-            &mint_key,
-            &account_a_key,
-            &authority_key,
+            &mint_key.into(),
+            &account_a_key.into(),
+            &authority_key.into(),
             &[],
             1_000_000_000,
         )
         .unwrap(),
         spl_token_interface::instruction::mint_to(
             &TOKEN_PROGRAM_ID,
-            &mint_key,
-            &account_b_key,
-            &authority_key,
+            &mint_key.into(),
+            &account_b_key.into(),
+            &authority_key.into(),
             &[],
             1_000_000_000,
         )
         .unwrap(),
         spl_token_interface::instruction::burn(
             &TOKEN_PROGRAM_ID,
-            &account_a_key,
-            &mint_key,
-            &authority_key,
+            &account_a_key.into(),
+            &mint_key.into(),
+            &authority_key.into(),
             &[],
             1_000_000_000,
         )
         .unwrap(),
         spl_token_interface::instruction::burn(
             &TOKEN_PROGRAM_ID,
-            &account_b_key,
-            &mint_key,
-            &authority_key,
+            &account_b_key.into(),
+            &mint_key.into(),
+            &authority_key.into(),
             &[],
             1_000_000_000,
         )
@@ -753,11 +787,11 @@ async fn batch_fail_burn_with_invalid_program_owner() {
             ],
         )],
         &[
-            (mint_key, mint),
-            (account_a_key, account_a),
-            (account_b_key, account_b),
+            (mint_key.into(), mint),
+            (account_a_key.into(), account_a),
+            (account_b_key.into(), account_b),
             (
-                authority_key,
+                authority_key.into(),
                 Account {
                     lamports: Rent::default().minimum_balance(0),
                     ..Default::default()
