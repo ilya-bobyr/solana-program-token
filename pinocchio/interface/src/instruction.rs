@@ -6,7 +6,7 @@ use core::mem::transmute;
 
 /// Instructions supported by the token program.
 #[repr(u8)]
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(test, derive(strum_macros::FromRepr, strum_macros::EnumIter))]
 pub enum TokenInstruction {
     /// Initializes a new mint and optionally deposits all the newly minted
@@ -557,7 +557,7 @@ impl TryFrom<u8> for TokenInstruction {
 
 /// Specifies the authority type for `SetAuthority` instructions
 #[repr(u8)]
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(test, derive(strum_macros::FromRepr, strum_macros::EnumIter))]
 pub enum AuthorityType {
     /// Authority to mint new tokens
@@ -593,7 +593,7 @@ mod tests {
     #[test]
     fn test_token_instruction_from_u8_exhaustive() {
         for variant in TokenInstruction::iter() {
-            let variant_u8 = variant.clone() as u8;
+            let variant_u8 = variant as u8;
             assert_eq!(
                 TokenInstruction::from_repr(variant_u8),
                 Some(TokenInstruction::try_from(variant_u8).unwrap())
@@ -605,7 +605,7 @@ mod tests {
     #[test]
     fn test_authority_type_from_u8_exhaustive() {
         for variant in AuthorityType::iter() {
-            let variant_u8 = variant.clone() as u8;
+            let variant_u8 = variant as u8;
             assert_eq!(
                 AuthorityType::from_repr(variant_u8),
                 Some(AuthorityType::try_from(variant_u8).unwrap())
